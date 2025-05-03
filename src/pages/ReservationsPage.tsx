@@ -1,10 +1,10 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { reservations as initialReservations, rooms, clients } from '@/data/mockData';
-import { Reservation, ReservationStatus, Room, Client } from '@/types';
+import { isToday } from 'date-fns';
+import { Chambre, ChambreStatus, Client, Reservation, ReservationStatus } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,13 +55,17 @@ import {
   Edit,
   Trash2,
   Search,
-  Filter,
   Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import api from '@/lib/api';
+import { ControlleChamps } from '@/utils/controlleChamp';
+
 
 const ReservationsPage = () => {
-  const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [rooms, setRooms] = useState<Chambre[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('toutes');
   const [isAddingReservation, setIsAddingReservation] = useState(false);
@@ -69,6 +73,7 @@ const ReservationsPage = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [reservationToDelete, setReservationToDelete] = useState<string | null>(null);
   const { toast } = useToast();
+  const ctrl = new ControlleChamps();
 
   // État pour le formulaire
   const [formData, setFormData] = useState<{
@@ -91,52 +96,101 @@ const ReservationsPage = () => {
     commentaires: '',
   });
 
+
+  const minDate = new Date(formData.dateArrivee);
+  const maxDate = new Date(formData.dateDepart);
+
   const handleFormChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
-    // Mise à jour automatique du prix total quand la chambre ou les dates changent
-    if (field === 'chambreId' || field === 'dateArrivee' || field === 'dateDepart') {
-      const room = rooms.find(r => r.id === (field === 'chambreId' ? value : formData.chambreId));
-      if (room) {
-        const dateArrivee = field === 'dateArrivee' ? value : formData.dateArrivee;
-        const dateDepart = field === 'dateDepart' ? value : formData.dateDepart;
-
-        if (dateArrivee && dateDepart) {
-          const millisecondsPerDay = 24 * 60 * 60 * 1000;
-          const nombreNuits = Math.max(1, Math.round((dateDepart.getTime() - dateArrivee.getTime()) / millisecondsPerDay));
-          const nouveauPrix = room.prix * nombreNuits;
-
-          setFormData(prev => ({ ...prev, prixTotal: nouveauPrix }));
-        }
+  useEffect(() => {
+    const room = rooms.find(r => r.id === formData.chambreId);
+    if (room) {
+      const dateArrivee: any = new Date(formData.dateArrivee);
+      const dateDepart: any = new Date(formData.dateDepart);
+      const millisecondsPerDay = 24 * 60 * 60 * 1000;
+      if (dateArrivee && dateDepart) {
+        const nombreNuits = Math.ceil((dateDepart - dateArrivee) / millisecondsPerDay);
+        const nouveauPrix = room.prix * nombreNuits;
+        setFormData(prev => ({ ...prev, prixTotal: nouveauPrix }));
       }
     }
+  }, [formData.dateArrivee, formData.dateDepart, formData.chambreId])
+
+
+  const changeStatusReservation = async (reservationId: string, status: ReservationStatus) => {
+    await api.put(`/reservations/${reservationId}/statut`, { status },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        params: { statut: status }
+      }
+    )
+  };
+  const changeStatusChambre = async (chambreId: string, status: ChambreStatus) => {
+    await api.put(`/chambres/${chambreId}/statut`, { status },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        params: { statut: status }
+      }
+    )
   };
 
-  const handleAddReservation = () => {
-    const newReservation: Reservation = {
-      id: `res-${Date.now()}`,
-      chambreId: formData.chambreId,
-      clientId: formData.clientId,
-      dateArrivee: formData.dateArrivee,
-      dateDepart: formData.dateDepart,
-      nombrePersonnes: formData.nombrePersonnes,
-      statut: formData.statut,
-      prixTotal: formData.prixTotal,
-      commentaires: formData.commentaires,
-      dateCreation: new Date(),
-    };
+  const getAllReservations = async () => {
+    await api.get('/reservations')
+      .then(async (res) => {
+        res.data.forEach(async (e: Reservation) => {
 
-    setReservations([...reservations, newReservation]);
+          const dateArrivee = new Date(format(e.dateArrivee, 'MM/dd/yyy'));
+          const dateDepart = new Date(format(e.dateDepart, 'MM/dd/yyy'));
+          const aujourdHui = new Date(format(new Date(), 'MM/dd/yyyy'));
+          const reservationId = e.id;
+          const chambreId = e.chambre.id;
 
-    resetForm();
 
-    setIsAddingReservation(false);
+          if (e.statut == ReservationStatus.EN_ATTENTE) {
+            if (aujourdHui >= dateArrivee) {
+              changeStatusReservation(reservationId, ReservationStatus.ANNULEE);
+            }
+          } else if (e.statut === ReservationStatus.CONFIRMEE) {
 
-    toast({
-      title: 'Réservation ajoutée',
-      description: 'La réservation a été ajoutée avec succès.',
-    });
+            if ((aujourdHui >= dateArrivee && aujourdHui < dateDepart)) {
+              changeStatusChambre(chambreId, ChambreStatus.OCCUPEE);
+
+            } else if (isToday(dateDepart)) {
+              changeStatusReservation(reservationId, ReservationStatus.TERMINEE);
+            }
+          }
+        });
+        await api.get('/reservations')
+          .then((res) => {
+            setReservations(res.data);
+            getAllChambres();
+          })
+      })
+      .catch((error) => console.error(error))
   };
+
+  const getAllClients = async () => {
+
+    await api.get('/clients')
+      .then((res) => setClients(res.data))
+      .catch((error) => console.error(error))
+  };
+  const getAllChambres = async () => {
+    await api.get('/chambres')
+      .then((res) => setRooms(res.data))
+      .catch((error) => console.error(error))
+  };
+
+  useEffect(() => {
+    getAllClients();
+    getAllReservations();
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -151,12 +205,48 @@ const ReservationsPage = () => {
     });
   };
 
+  const handleAddReservation = async () => {
+    const reservation: any = {
+      id: `res-${Date.now()}`,
+      dateArrivee: formData.dateArrivee,
+      dateDepart: formData.dateDepart,
+      nombrePersonnes: formData.nombrePersonnes,
+      statut: formData.statut,
+      prixTotal: formData.prixTotal,
+      commentaires: formData.commentaires,
+      dateCreation: new Date(),
+    };
+
+    if (reservation.prixTotal == 0) return;
+
+    await api.post('/reservations', reservation,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        params: {
+          clientId: formData.clientId,
+          chambreId: formData.chambreId
+        }
+      })
+      .then((res) => {
+        getAllReservations();
+        resetForm();
+        setIsAddingReservation(false);
+        toast({
+          title: 'Réservation ajoutée',
+          description: 'La réservation a été ajoutée avec succès.',
+        });
+      })
+      .catch((error) => console.error(error))
+  };
+
 
   const handleEditReservation = (reservation: Reservation) => {
     setReservationToEdit(reservation);
     setFormData({
-      chambreId: reservation.chambreId,
-      clientId: reservation.clientId,
+      chambreId: reservation.chambre.id,
+      clientId: reservation.client.id,
       dateArrivee: reservation.dateArrivee,
       dateDepart: reservation.dateDepart,
       nombrePersonnes: reservation.nombrePersonnes,
@@ -167,32 +257,38 @@ const ReservationsPage = () => {
     setIsEditingReservation(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!reservationToEdit) return;
 
-    const updatedReservations = reservations.map(reservation =>
-      reservation.id === reservationToEdit.id
-        ? {
-          ...reservationToEdit,
-          chambreId: formData.chambreId,
-          clientId: formData.clientId,
-          dateArrivee: formData.dateArrivee,
-          dateDepart: formData.dateDepart,
-          nombrePersonnes: formData.nombrePersonnes,
-          statut: formData.statut,
-          prixTotal: formData.prixTotal,
-          commentaires: formData.commentaires,
-        }
-        : reservation
-    );
 
-    setReservations(updatedReservations);
-    setReservationToEdit(null);
+    const updatedReservations = {
+      dateArrivee: formData.dateArrivee,
+      dateDepart: formData.dateDepart,
+      nombrePersonnes: formData.nombrePersonnes,
+      statut: formData.statut,
+      prixTotal: formData.prixTotal,
+      commentaires: formData.commentaires,
+    }
+    if (updatedReservations.prixTotal == 0) return;
 
-    toast({
-      title: 'Réservation modifiée',
-      description: 'La réservation a été modifiée avec succès.',
-    });
+
+    await api.put(`/reservations/${reservationToEdit.id}`, updatedReservations,
+      {
+        headers: { "Content-Type": "application/json" }
+      }
+    )
+      .then((res) => {
+        getAllReservations();
+        resetForm();
+        setIsEditingReservation(false);
+        setReservationToEdit(null);
+        toast({
+          title: 'Réservation modifiée',
+          description: 'La réservation a été modifiée avec succès.',
+        });
+
+      })
+      .catch((error) => console.error(error))
   };
 
   const handleDeleteConfirmation = (reservationId: string) => {
@@ -200,25 +296,27 @@ const ReservationsPage = () => {
     setShowDeleteConfirm(true);
   };
 
-  const handleDeleteReservation = () => {
+  const handleDeleteReservation = async () => {
     if (!reservationToDelete) return;
-
-    const updatedReservations = reservations.filter(reservation => reservation.id !== reservationToDelete);
-    setReservations(updatedReservations);
-    setReservationToDelete(null);
-    setShowDeleteConfirm(false);
-
-    toast({
-      title: 'Réservation supprimée',
-      description: 'La réservation a été supprimée avec succès.',
-    });
+    await api.delete(`/reservations/${reservationToDelete}`)
+      .then(() => {
+        getAllChambres();
+        getAllReservations();
+        setReservationToDelete(null);
+        setShowDeleteConfirm(false);
+        toast({
+          title: 'Réservation supprimée',
+          description: 'La réservation a été supprimée avec succès.',
+        });
+      })
+      .catch((error) => console.error(error))
   };
 
   // Filtrage des réservations
   const filteredReservations = reservations.filter(reservation => {
     // Filtre par terme de recherche
-    const room = rooms.find(r => r.id === reservation.chambreId);
-    const client = clients.find(c => c.id === reservation.clientId);
+    const room = rooms.find(r => r.id === reservation.chambre.id);
+    const client = clients.find(c => c.id === reservation.client.id);
     const searchCondition =
       room?.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
       `${client?.prenom} ${client?.nom}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -246,13 +344,10 @@ const ReservationsPage = () => {
     );
   };
 
-  const getRoomInfoById = (roomId: string): Room | undefined => {
+  const getRoomInfoById = (roomId: string): Chambre | undefined => {
     return rooms.find(room => room.id === roomId);
   };
 
-  const getClientInfoById = (clientId: string): Client | undefined => {
-    return clients.find(client => client.id === clientId);
-  };
 
   const [isEditingReservation, setIsEditingReservation] = useState(false);
 
@@ -262,7 +357,9 @@ const ReservationsPage = () => {
         <h1 className="text-3xl font-bold tracking-tight">Gestion des réservations</h1>
         <Dialog open={isAddingReservation} onOpenChange={setIsAddingReservation}>
           <DialogTrigger asChild>
-            <Button onClick={resetForm}>
+            <Button onClick={() => {
+              resetForm();
+            }}>
               <Plus className="h-4 w-4 mr-2" />
               Ajouter une réservation
             </Button>
@@ -288,7 +385,7 @@ const ReservationsPage = () => {
                     <SelectContent>
                       {clients.map(client => (
                         <SelectItem key={client.id} value={client.id}>
-                          {client.prenom} {client.nom}
+                          {client.nom} {client.prenom}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -304,7 +401,7 @@ const ReservationsPage = () => {
                       <SelectValue placeholder="Sélectionner une chambre" />
                     </SelectTrigger>
                     <SelectContent>
-                      {rooms.map(room => (
+                      {rooms.filter((r) => r.statut == ChambreStatus.DISPONIBLE).map(room => (
                         <SelectItem key={room.id} value={room.id}>
                           {room.numero} - {room.type}
                         </SelectItem>
@@ -338,8 +435,10 @@ const ReservationsPage = () => {
                         mode="single"
                         selected={formData.dateArrivee}
                         onSelect={(date) => date && handleFormChange('dateArrivee', date)}
+                        toDate={maxDate}
                         initialFocus
                         className="p-3 pointer-events-auto"
+
                       />
                     </PopoverContent>
                   </Popover>
@@ -367,8 +466,9 @@ const ReservationsPage = () => {
                       <Calendar
                         mode="single"
                         selected={formData.dateDepart}
-                        onSelect={(date) => date && handleFormChange('dateDepart', date)}
+                        onSelect={(date) => date && handleFormChange('dateDepart', date > formData.dateArrivee ? date : formData.dateArrivee)}
                         initialFocus
+                        fromDate={minDate}
                         className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
@@ -397,7 +497,7 @@ const ReservationsPage = () => {
                     <SelectContent>
                       {Object.values(ReservationStatus).map(status => (
                         <SelectItem key={status} value={status}>
-                          {status}
+                          {status == "En_attente" ? "En attente" : status}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -415,9 +515,9 @@ const ReservationsPage = () => {
                 </div>
                 <Input
                   id="prixTotal"
-                  type="number"
                   value={formData.prixTotal}
-                  onChange={e => handleFormChange('prixTotal', parseInt(e.target.value))}
+                  onChange={e => handleFormChange('prixTotal', parseInt(ctrl.nombre(e.target.value)))}
+                  readOnly
                 />
               </div>
               <div className="space-y-2">
@@ -482,27 +582,27 @@ const ReservationsPage = () => {
                   <TableHead>Date d'arrivée</TableHead>
                   <TableHead>Date de départ</TableHead>
                   <TableHead>Prix</TableHead>
+                  <TableHead>Date de réservation</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredReservations.map((reservation) => {
-                  const client = getClientInfoById(reservation.clientId);
-                  const room = getRoomInfoById(reservation.chambreId);
-
                   return (
                     <TableRow key={reservation.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{client?.prenom} {client?.nom}</div>
-                          <div className="text-sm text-muted-foreground">{client?.email}</div>
+                          <div className="font-medium">{reservation.client.nom} {reservation.client.prenom}</div>
+                          <div className="text-sm text-muted-foreground">{reservation.client.email}</div>
                         </div>
                       </TableCell>
-                      <TableCell>{room?.numero}</TableCell>
+                      <TableCell>{reservation.chambre.numero} - {reservation.chambre.type}</TableCell>
                       <TableCell>{format(reservation.dateArrivee, 'dd/MM/yyyy')}</TableCell>
                       <TableCell>{format(reservation.dateDepart, 'dd/MM/yyyy')}</TableCell>
                       <TableCell>{reservation.prixTotal} Ar</TableCell>
+                      <TableCell>{format(reservation.dateCreation, 'dd/MM/yyyy')}</TableCell>
+
                       <TableCell>{getStatusBadge(reservation.statut)}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -538,7 +638,6 @@ const ReservationsPage = () => {
                                       <Label htmlFor="client">Client</Label>
                                       <Select
                                         value={formData.clientId}
-                                        onValueChange={value => handleFormChange('clientId', value)}
                                       >
                                         <SelectTrigger>
                                           <SelectValue placeholder="Sélectionner un client" />
@@ -556,7 +655,6 @@ const ReservationsPage = () => {
                                       <Label htmlFor="chambre">Chambre</Label>
                                       <Select
                                         value={formData.chambreId}
-                                        onValueChange={value => handleFormChange('chambreId', value)}
                                       >
                                         <SelectTrigger>
                                           <SelectValue placeholder="Sélectionner une chambre" />
@@ -597,6 +695,7 @@ const ReservationsPage = () => {
                                             selected={formData.dateArrivee}
                                             onSelect={(date) => date && handleFormChange('dateArrivee', date)}
                                             initialFocus
+                                            toDate={maxDate}
                                             className="p-3 pointer-events-auto"
                                           />
                                         </PopoverContent>
@@ -625,7 +724,10 @@ const ReservationsPage = () => {
                                           <Calendar
                                             mode="single"
                                             selected={formData.dateDepart}
-                                            onSelect={(date) => date && handleFormChange('dateDepart', date)}
+                                            onSelect={(date) => {
+                                              date && handleFormChange('dateDepart', date)
+                                            }}
+                                            fromDate={minDate}
                                             initialFocus
                                             className="p-3 pointer-events-auto"
                                           />
@@ -655,7 +757,7 @@ const ReservationsPage = () => {
                                         <SelectContent>
                                           {Object.values(ReservationStatus).map(status => (
                                             <SelectItem key={status} value={status}>
-                                              {status}
+                                              {status == "En_attente" ? "En attente" : status}
                                             </SelectItem>
                                           ))}
                                         </SelectContent>
@@ -673,9 +775,9 @@ const ReservationsPage = () => {
                                     </div>
                                     <Input
                                       id="prixTotal"
-                                      type="number"
                                       value={formData.prixTotal}
-                                      onChange={e => handleFormChange('prixTotal', parseInt(e.target.value))}
+                                      onChange={e => handleFormChange('prixTotal', parseInt(ctrl.nombre(e.target.value)))}
+                                      readOnly
                                     />
                                   </div>
                                   <div className="space-y-2">

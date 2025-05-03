@@ -48,11 +48,6 @@ const Sidebar = () => {
       path: '/clients',
     },
     {
-      title: 'Rapports',
-      icon: <FileBarChart className="h-5 w-5" />,
-      path: '/rapports',
-    },
-    {
       title: 'Paramètres',
       icon: <Settings className="h-5 w-5" />,
       path: '/parametres',
@@ -98,17 +93,17 @@ const Sidebar = () => {
       <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-sidebar-primary text-white">
-              {user?.prenom?.charAt(0).toLocaleUpperCase()}{user?.nom?.charAt(0).toLocaleUpperCase()}
+            <AvatarFallback className="bg-sky-700 text-white">
+              {user?.nom?.charAt(0).toLocaleUpperCase()}.{user?.prenom?.charAt(0).toLocaleUpperCase()}
             </AvatarFallback>
           </Avatar>
           {!isCollapsed && (
             <div className="ml-3">
               <p className="text-sm font-medium text-sidebar-foreground">
-                {user?.prenom} {user?.nom}
+                {user?.nom} {user?.prenom}
               </p>
               <p className="text-xs text-sidebar-foreground opacity-70">
-                {user?.role}
+                {user?.roles}
               </p>
             </div>
           )}

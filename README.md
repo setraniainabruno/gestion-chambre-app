@@ -8,7 +8,7 @@ Ce projet est une application web de gestion de réservations de chambres réali
 Cloner le projet dans ton répertoire local :
 
 ```bash
-[git clone "https://github.com/setraniainabruno/gestion-chambre-app.git"]
+git clone ["https://github.com/setraniainabruno/gestion-chambre-app.git"]
 cd ton-projet
 npm install
 npm run dev

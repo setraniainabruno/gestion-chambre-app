@@ -1,8 +1,7 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { rooms as initialRooms, clients } from '@/data/mockData';
-import { Room, RoomStatus, RoomType } from '@/types';
+import { Chambre, ChambreType, ChambreStatus } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,36 +38,36 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Plus,
   MoreHorizontal,
   Edit,
   Trash2,
-  Search,
-  Filter,
-  CheckCircle2
+  Search
 } from 'lucide-react';
+import api from '@/lib/api';
+import { ControlleChamps } from '@/utils/controlleChamp';
 
 const RoomsPage = () => {
-  const [rooms, setRooms] = useState<Room[]>(initialRooms);
+  const [rooms, setRooms] = useState<Chambre[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [roomToEdit, setRoomToEdit] = useState<Room | null>(null);
+  const [roomToEdit, setRoomToEdit] = useState<Chambre | null>(null);
   const [isAddingRoom, setIsAddingRoom] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
   const { toast } = useToast();
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const ctrl = new ControlleChamps();
 
 
   // Nouvel état pour le formulaire
-  const [formData, setFormData] = useState<Partial<Room>>({
+  const [formData, setFormData] = useState<Partial<Chambre>>({
     numero: '',
-    type: RoomType.SIMPLE,
+    type: ChambreType.SIMPLE,
     etage: 1,
     prix: 0,
     capacite: 1,
-    statut: RoomStatus.DISPONIBLE,
+    statut: ChambreStatus.DISPONIBLE,
     description: '',
   });
 
@@ -76,45 +75,68 @@ const RoomsPage = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const getAllChambres = async () => {
+    try {
+      const res = await api.get('/chambres');
+      if (res) {
+        setRooms(res.data);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    getAllChambres();
+  }, []);
 
 
-  const handleAddRoom = () => {
-    const newRoom: Room = {
-      id: `room-${Date.now()}`,
-      numero: formData.numero || '',
-      type: formData.type || RoomType.SIMPLE,
-      etage: formData.etage || 1,
-      prix: formData.prix || 0,
-      capacite: formData.capacite || 1,
-      statut: formData.statut || RoomStatus.DISPONIBLE,
-      description: formData.description || ''
-    };
+  const handleAddRoom = async () => {
+    try {
+      const chambre: Chambre = {
+        id: `room-${Date.now()}`,
+        numero: formData.numero || '',
+        type: formData.type || ChambreType.SIMPLE,
+        etage: formData.etage || 1,
+        prix: formData.prix || 0,
+        capacite: formData.capacite || 1,
+        statut: formData.statut || ChambreStatus.DISPONIBLE,
+        description: formData.description || ''
+      };
+      if (chambre.numero == '' || chambre.prix == 0) return;
 
-    setRooms([...rooms, newRoom]);
-
-    resetForm();
-
-    setIsAddingRoom(false);
-
-    toast({
-      title: 'Chambre ajoutée',
-      description: `La chambre ${newRoom.numero} a été ajoutée avec succès.`,
-    });
+      const res = await api.post('/chambres', chambre,
+        {
+          headers: { 'Content-type': 'application/json' }
+        }
+      )
+      if (res) {
+        getAllChambres();
+        resetForm();
+        setIsAddingRoom(false);
+        toast({
+          title: 'Chambre ajoutée',
+          description: `La chambre ${chambre.numero} a été ajoutée avec succès.`,
+        });
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const resetForm = () => {
     setFormData({
       numero: '',
-      type: RoomType.SIMPLE,
+      type: ChambreType.SIMPLE,
       etage: 1,
       prix: 0,
       capacite: 1,
-      statut: RoomStatus.DISPONIBLE,
+      statut: ChambreStatus.DISPONIBLE,
       description: '',
     });
   };
 
-  const handleEditRoom = (room: Room) => {
+  const handleEditRoom = (room: Chambre) => {
     setRoomToEdit(room);
     setFormData({
       numero: room.numero,
@@ -128,65 +150,93 @@ const RoomsPage = () => {
     setEditDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
-    if (!roomToEdit) return;
+  const handleSaveEdit = async () => {
+    try {
+      if (!roomToEdit) return;
 
-    const updatedRooms = rooms.map(room =>
-      room.id === roomToEdit.id
-        ? {
-          ...roomToEdit,
-          numero: formData.numero || roomToEdit.numero,
-          type: formData.type || roomToEdit.type,
-          etage: formData.etage !== undefined ? formData.etage : roomToEdit.etage,
-          prix: formData.prix !== undefined ? formData.prix : roomToEdit.prix,
-          capacite: formData.capacite !== undefined ? formData.capacite : roomToEdit.capacite,
-          statut: formData.statut || roomToEdit.statut,
-          description: formData.description,
+
+      const updatedRoom = {
+        numero: formData.numero || roomToEdit.numero,
+        type: formData.type || roomToEdit.type,
+        etage: formData.etage !== undefined ? formData.etage : roomToEdit.etage,
+        prix: formData.prix !== undefined ? formData.prix : roomToEdit.prix,
+        capacite: formData.capacite !== undefined ? formData.capacite : roomToEdit.capacite,
+        statut: formData.statut || roomToEdit.statut,
+        description: formData.description,
+      };
+      if (updatedRoom.prix == 0) return;
+
+      const res = await api.put(`/chambres/${roomToEdit.id}`,
+        updatedRoom,
+        {
+          headers: { "Content-type": "application/json" }
         }
-        : room
-    );
+      )
+      if (res) {
+        getAllChambres();
+        setRoomToEdit(null);
+        setEditDialogOpen(false);
+        toast({
+          title: 'Chambre modifiée',
+          description: `La chambre ${formData.numero} a été modifiée avec succès.`,
+        });
+      }
 
-    setRooms(updatedRooms);
-    setRoomToEdit(null);
-
-    toast({
-      title: 'Chambre modifiée',
-      description: `La chambre ${formData.numero} a été modifiée avec succès.`,
-    });
+    } catch (error) {
+      console.error(error)
+    }
   };
 
-  const handleDeleteConfirmation = (roomId: string) => {
-    setRoomToDelete(roomId);
-    setShowDeleteConfirm(true);
+  const handleDeleteConfirmation = async (roomId: string) => {
+    // Vérifier si la chambre est ocuppé ou reservé
+    await api.get(`/chambres/${roomId}`)
+      .then((res) => {
+        const chambre = res.data;
+        if (chambre.statut == ChambreStatus.OCCUPEE || chambre.statut == ChambreStatus.RESERVEE) {
+          toast({
+            title: 'Suppression impossible',
+            description: `Chambre ${chambre.statut}`,
+            variant: 'destructive',
+          });
+          setRoomToDelete('');
+          setShowDeleteConfirm(false);
+        } else {
+          setRoomToDelete(roomId);
+          setShowDeleteConfirm(true);
+        }
+      })
   };
 
-  const handleDeleteRoom = () => {
+  const handleDeleteRoom = async () => {
     if (!roomToDelete) return;
 
-    const updatedRooms = rooms.filter(room => room.id !== roomToDelete);
-    setRooms(updatedRooms);
-    setRoomToDelete(null);
-    setShowDeleteConfirm(false);
-
-    toast({
-      title: 'Chambre supprimée',
-      description: 'La chambre a été supprimée avec succès.',
-    });
+    try {
+      const res = await api.delete(`/chambres/${roomToDelete}`);
+      if (res) {
+        getAllChambres();
+        setRoomToDelete(null);
+        setShowDeleteConfirm(false);
+        toast({
+          title: 'Chambre supprimée',
+          description: 'La chambre a été supprimée avec succès.',
+        });
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const filteredRooms = rooms.filter(room =>
     room.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    room.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     room.type.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getStatusBadge = (status: RoomStatus) => {
+  const getStatusBadge = (status: ChambreStatus) => {
     const statusMap = {
-      [RoomStatus.DISPONIBLE]: { color: 'bg-green-100 text-green-800', label: 'Disponible' },
-      [RoomStatus.OCCUPEE]: { color: 'bg-red-100 text-red-800', label: 'Occupée' },
-      [RoomStatus.MAINTENANCE]: { color: 'bg-gray-100 text-gray-800', label: 'Maintenance' },
-      [RoomStatus.NETTOYAGE]: { color: 'bg-blue-100 text-blue-800', label: 'Nettoyage' },
-      [RoomStatus.RESERVEE]: { color: 'bg-amber-100 text-amber-800', label: 'Réservée' },
+      [ChambreStatus.DISPONIBLE]: { color: 'bg-green-100 text-green-800', label: 'Disponible' },
+      [ChambreStatus.OCCUPEE]: { color: 'bg-red-100 text-red-800', label: 'Occupée' },
+      [ChambreStatus.MAINTENANCE]: { color: 'bg-gray-100 text-gray-800', label: 'Maintenance' },
+      [ChambreStatus.RESERVEE]: { color: 'bg-amber-100 text-amber-800', label: 'Réservée' },
     };
 
     return (
@@ -215,15 +265,16 @@ const RoomsPage = () => {
                 Remplissez les informations pour créer une nouvelle chambre.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <form className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="numero">Numéro</Label>
                   <Input
                     id="numero"
-                    placeholder="ex: 101"
+                    placeholder="Numéro.."
                     value={formData.numero}
-                    onChange={e => handleFormChange('numero', e.target.value)}
+                    onChange={e => handleFormChange('numero', ctrl.nombre(e.target.value))}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -247,7 +298,7 @@ const RoomsPage = () => {
                       <SelectValue placeholder="Sélectionner un type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(RoomType).map(type => (
+                      {Object.values(ChambreType).map(type => (
                         <SelectItem key={type} value={type}>
                           {type}
                         </SelectItem>
@@ -265,7 +316,7 @@ const RoomsPage = () => {
                       <SelectValue placeholder="Sélectionner un statut" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(RoomStatus).map(status => (
+                      {Object.values(ChambreStatus).map(status => (
                         <SelectItem key={status} value={status}>
                           {status}
                         </SelectItem>
@@ -279,9 +330,8 @@ const RoomsPage = () => {
                   <Label htmlFor="prix">Prix par nuit (Ar)</Label>
                   <Input
                     id="prix"
-                    type="number"
                     value={formData.prix}
-                    onChange={e => handleFormChange('prix', parseInt(e.target.value))}
+                    onChange={e => handleFormChange('prix', ctrl.nombre(e.target.value))}
                   />
                 </div>
                 <div className="space-y-2">
@@ -303,7 +353,7 @@ const RoomsPage = () => {
                   onChange={e => handleFormChange('description', e.target.value)}
                 />
               </div>
-            </div>
+            </form>
             <DialogFooter>
               <DialogClose asChild>
                 <Button variant="outline">Annuler</Button>
@@ -386,9 +436,9 @@ const RoomsPage = () => {
                                     <Label htmlFor="numero">Numéro</Label>
                                     <Input
                                       id="numero"
-                                      placeholder="ex: 101"
+                                      placeholder="Numéro..."
                                       value={formData.numero}
-                                      onChange={e => handleFormChange('numero', e.target.value)}
+                                      onChange={e => handleFormChange('numero', ctrl.nombre(e.target.value))}
                                     />
                                   </div>
                                   <div className="space-y-2">
@@ -412,7 +462,7 @@ const RoomsPage = () => {
                                         <SelectValue placeholder="Sélectionner un type" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {Object.values(RoomType).map(type => (
+                                        {Object.values(ChambreType).map(type => (
                                           <SelectItem key={type} value={type}>
                                             {type}
                                           </SelectItem>
@@ -430,7 +480,7 @@ const RoomsPage = () => {
                                         <SelectValue placeholder="Sélectionner un statut" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {Object.values(RoomStatus).map(status => (
+                                        {Object.values(ChambreStatus).map(status => (
                                           <SelectItem key={status} value={status}>
                                             {status}
                                           </SelectItem>
@@ -444,9 +494,8 @@ const RoomsPage = () => {
                                     <Label htmlFor="prix">Prix par nuit (Ar)</Label>
                                     <Input
                                       id="prix"
-                                      type="number"
                                       value={formData.prix}
-                                      onChange={e => handleFormChange('prix', parseInt(e.target.value))}
+                                      onChange={e => handleFormChange('prix', ctrl.nombre(e.target.value))}
                                     />
                                   </div>
                                   <div className="space-y-2">

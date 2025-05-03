@@ -11,7 +11,6 @@ import DashboardPage from "./pages/DashboardPage";
 import RoomsPage from "./pages/RoomsPage";
 import ReservationsPage from "./pages/ReservationsPage";
 import ClientsPage from "./pages/ClientsPage";
-import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -31,7 +30,6 @@ const App = () => (
             <Route path="/chambres" element={<AppLayout><RoomsPage /></AppLayout>} />
             <Route path="/reservations" element={<AppLayout><ReservationsPage /></AppLayout>} />
             <Route path="/clients" element={<AppLayout><ClientsPage /></AppLayout>} />
-            <Route path="/rapports" element={<AppLayout><ReportsPage /></AppLayout>} />
             <Route path="/parametres" element={<AppLayout><SettingsPage /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,7 +1,6 @@
-import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { User } from '@/types'; // tu as déjà User et UserRole
+import { createContext, useState, useContext, ReactNode } from 'react';
+import { User } from '@/types';
 import api from '@/lib/api';
-import { useLocation, useNavigationType } from 'react-router-dom';
 
 interface AuthContextType {
   user: User | null;
@@ -44,7 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
-  useEffect(() => {
+  setTimeout(() => {
     const storedUser = sessionStorage.getItem('user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -52,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (location.pathname === "/login") {
       logout();
     }
-  }, [location.pathname]);
+  }, 5000);
 
 
   return (

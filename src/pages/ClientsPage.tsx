@@ -1,9 +1,7 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { clients as initialClients, reservations } from '@/data/mockData';
 import { Client } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,12 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,24 +39,27 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  CalendarIcon,
-  Plus,
   MoreHorizontal,
   Edit,
   Trash2,
   Search,
   UserPlus
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import api from '@/lib/api';
+import ReservationParClient from '../components/ReservationParClient';
+import { ControlleChamps } from '@/utils/controlleChamp';
+
 
 const ClientsPage = () => {
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
   const [isAddingClient, setIsAddingClient] = useState(false);
+  const [isUpdatingClient, setIsUpdatingClient] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
   const { toast } = useToast();
+  const ctrl = new ControlleChamps();
 
   // État pour le formulaire
   const [formData, setFormData] = useState<Partial<Client>>({
@@ -73,7 +68,6 @@ const ClientsPage = () => {
     email: '',
     telephone: '',
     adresse: '',
-    dateNaissance: undefined,
     numeroPieceIdentite: '',
     typePieceIdentite: '',
   });
@@ -82,28 +76,52 @@ const ClientsPage = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleAddClient = () => {
-    const newClient: Client = {
-      id: `client-${Date.now()}`,
-      nom: formData.nom || '',
-      prenom: formData.prenom || '',
-      email: formData.email || '',
-      telephone: formData.telephone || '',
-      adresse: formData.adresse,
-      dateNaissance: formData.dateNaissance,
-      numeroPieceIdentite: formData.numeroPieceIdentite,
-      typePieceIdentite: formData.typePieceIdentite,
-      dateCreation: new Date(),
-    };
+  const getAllClients = async () => {
+    try {
+      const res = await api.get('/clients');
+      if (res) {
+        setClients(res.data);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  useEffect(() => {
+    getAllClients();
+  }, []);
 
-    setClients([...clients, newClient]);
-    resetForm();
-    setIsAddingClient(false);
+  const handleAddClient = async () => {
+    try {
+      const client: Client = {
+        id: `client-${Date.now()}`,
+        nom: formData.nom || '',
+        prenom: formData.prenom || '',
+        email: formData.email || '',
+        telephone: formData.telephone || '',
+        adresse: formData.adresse,
+        numeroPieceIdentite: formData.numeroPieceIdentite,
+        typePieceIdentite: formData.typePieceIdentite,
+        dateCreation: new Date(),
+      };
 
-    toast({
-      title: 'Client ajouté',
-      description: `${newClient.prenom} ${newClient.nom} a été ajouté avec succès.`,
-    });
+      const res = await api.post('/clients', client,
+        {
+          headers: { "Content-Type": "application/json" }
+        }
+      )
+      if (res) {
+        getAllClients();
+        resetForm();
+        setIsAddingClient(false);
+        toast({
+          title: 'Client ajouté',
+          description: `${client.nom} ${client.prenom} a été ajouté avec succès.`,
+        });
+      }
+
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   const handleEditClient = (client: Client) => {
@@ -114,39 +132,48 @@ const ClientsPage = () => {
       email: client.email,
       telephone: client.telephone,
       adresse: client.adresse,
-      dateNaissance: client.dateNaissance,
       numeroPieceIdentite: client.numeroPieceIdentite,
       typePieceIdentite: client.typePieceIdentite,
     });
+    setIsUpdatingClient(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!clientToEdit) return;
 
-    const updatedClients = clients.map(client =>
-      client.id === clientToEdit.id
-        ? {
-          ...clientToEdit,
-          nom: formData.nom || clientToEdit.nom,
-          prenom: formData.prenom || clientToEdit.prenom,
-          email: formData.email || clientToEdit.email,
-          telephone: formData.telephone || clientToEdit.telephone,
-          adresse: formData.adresse,
-          dateNaissance: formData.dateNaissance,
-          numeroPieceIdentite: formData.numeroPieceIdentite,
-          typePieceIdentite: formData.typePieceIdentite,
+    try {
+      const updatedClients = {
+        nom: formData.nom || clientToEdit.nom,
+        prenom: formData.prenom || clientToEdit.prenom,
+        email: formData.email || clientToEdit.email,
+        telephone: formData.telephone || clientToEdit.telephone,
+        adresse: formData.adresse,
+        numeroPieceIdentite: formData.numeroPieceIdentite,
+        typePieceIdentite: formData.typePieceIdentite,
+      };
+
+      if (!clientToEdit.id) {
+        console.log('Id non trouvé');
+        return
+      }
+      const res = await api.put(`/clients/${clientToEdit.id}`, updatedClients,
+        {
+          headers: { "Content-Type": "application/json" }
         }
-        : client
-    );
-
-    setClients(updatedClients);
-    setClientToEdit(null);
-    resetForm();
-
-    toast({
-      title: 'Client modifié',
-      description: `${formData.prenom} ${formData.nom} a été modifié avec succès.`,
-    });
+      );
+      if (res) {
+        getAllClients();
+        setClientToEdit(null);
+        setIsUpdatingClient(false);
+        resetForm();
+        toast({
+          title: 'Client modifié',
+          description: `${formData.prenom} ${formData.nom} a été modifié avec succès.`,
+        });
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const resetForm = () => {
@@ -156,17 +183,18 @@ const ClientsPage = () => {
       email: '',
       telephone: '',
       adresse: '',
-      dateNaissance: undefined,
       numeroPieceIdentite: '',
       typePieceIdentite: '',
     });
   };
 
-  const handleDeleteConfirmation = (clientId: string) => {
-    // Vérifier si le client a des réservations
-    const hasReservations = reservations.some(reservation => reservation.clientId === clientId);
 
-    if (hasReservations) {
+
+  const handleDeleteConfirmation = async (clientId: string) => {
+    // Vérifier si le client a des réservations
+    const nombre_res = await api.get(`/reservations/nombre-client/${clientId}`);
+
+    if (nombre_res.data > 0) {
       toast({
         title: 'Suppression impossible',
         description: 'Ce client a des réservations associées. Veuillez d\'abord supprimer ces réservations.',
@@ -179,18 +207,23 @@ const ClientsPage = () => {
     setShowDeleteConfirm(true);
   };
 
-  const handleDeleteClient = () => {
+  const handleDeleteClient = async () => {
     if (!clientToDelete) return;
 
-    const updatedClients = clients.filter(client => client.id !== clientToDelete);
-    setClients(updatedClients);
-    setClientToDelete(null);
-    setShowDeleteConfirm(false);
+    try {
+      const res = await api.delete(`/clients/${clientToDelete}`);
+      if (res) {
+        getAllClients();
+        setShowDeleteConfirm(false);
+        toast({
+          title: 'Client supprimé',
+          description: 'Le client a été supprimé avec succès.',
+        });
+      }
 
-    toast({
-      title: 'Client supprimé',
-      description: 'Le client a été supprimé avec succès.',
-    });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const filteredClients = clients.filter(client =>
@@ -199,11 +232,6 @@ const ClientsPage = () => {
     client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.telephone.includes(searchTerm)
   );
-
-  // Fonction pour obtenir le nombre de réservations par client
-  const getReservationCountForClient = (clientId: string): number => {
-    return reservations.filter(reservation => reservation.clientId === clientId).length;
-  };
 
   return (
     <div className="space-y-6">
@@ -231,7 +259,7 @@ const ClientsPage = () => {
                     id="nom"
                     placeholder="Nom"
                     value={formData.nom}
-                    onChange={e => handleFormChange('nom', e.target.value)}
+                    onChange={e => handleFormChange('nom', ctrl.lettre(e.target.value.toLocaleUpperCase()))}
                     required
                   />
                 </div>
@@ -241,7 +269,8 @@ const ClientsPage = () => {
                     id="prenom"
                     placeholder="Prénom"
                     value={formData.prenom}
-                    onChange={e => handleFormChange('prenom', e.target.value)}
+                    onChange={e => handleFormChange('prenom', ctrl.lettre(e.target.value))}
+
                     required
                   />
                 </div>
@@ -264,7 +293,7 @@ const ClientsPage = () => {
                     id="telephone"
                     placeholder="Téléphone"
                     value={formData.telephone}
-                    onChange={e => handleFormChange('telephone', e.target.value)}
+                    onChange={e => handleFormChange('telephone', ctrl.taille(ctrl.nombre(e.target.value), 10))}
                     required
                   />
                 </div>
@@ -283,7 +312,10 @@ const ClientsPage = () => {
                   <Label htmlFor="pieceIdentiteType">Type de pièce d'identité</Label>
                   <Select
                     value={formData.typePieceIdentite}
-                    onValueChange={value => handleFormChange('typePieceIdentite', value)}
+                    onValueChange={(value) => {
+                      handleFormChange('typePieceIdentite', value)
+                      handleFormChange('numeroPieceIdentite', '');
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Sélectionner un type" />
@@ -302,7 +334,10 @@ const ClientsPage = () => {
                     id="numeroPieceIdentite"
                     placeholder="Numéro de pièce d'identité"
                     value={formData.numeroPieceIdentite}
-                    onChange={e => handleFormChange('numeroPieceIdentite', e.target.value)}
+                    onChange={e => handleFormChange('numeroPieceIdentite',
+                      (formData.typePieceIdentite == "Carte d'identité") ? ctrl.taille(ctrl.nombre(e.target.value), 12) : e.target.value
+                    )}
+
                   />
                 </div>
               </div>
@@ -349,7 +384,7 @@ const ClientsPage = () => {
                 {filteredClients.map((client) => (
                   <TableRow key={client.id}>
                     <TableCell>
-                      <div className="font-medium">{client.prenom} {client.nom}</div>
+                      <div className="font-medium">{client.nom} {client.prenom}</div>
                       <div className="text-sm text-muted-foreground">
                         {client.dateCreation && `Client depuis ${format(client.dateCreation, 'MM/yyyy')}`}
                       </div>
@@ -357,7 +392,8 @@ const ClientsPage = () => {
                     <TableCell>{client.email}</TableCell>
                     <TableCell>{client.telephone}</TableCell>
                     <TableCell>{client.adresse || '-'}</TableCell>
-                    <TableCell>{getReservationCountForClient(client.id)}</TableCell>
+                    <ReservationParClient clientId={client.id} />
+
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -367,7 +403,7 @@ const ClientsPage = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <Dialog>
+                          <Dialog open={isUpdatingClient} onOpenChange={setIsUpdatingClient}>
                             <DialogTrigger asChild>
                               <DropdownMenuItem
                                 onSelect={(e) => {
@@ -395,7 +431,7 @@ const ClientsPage = () => {
                                         id="nom"
                                         placeholder="Nom"
                                         value={formData.nom}
-                                        onChange={e => handleFormChange('nom', e.target.value)}
+                                        onChange={e => handleFormChange('nom', ctrl.lettre(e.target.value.toLocaleUpperCase()))}
                                         required
                                       />
                                     </div>
@@ -405,7 +441,7 @@ const ClientsPage = () => {
                                         id="prenom"
                                         placeholder="Prénom"
                                         value={formData.prenom}
-                                        onChange={e => handleFormChange('prenom', e.target.value)}
+                                        onChange={e => handleFormChange('prenom', ctrl.lettre(e.target.value))}
                                         required
                                       />
                                     </div>
@@ -428,7 +464,7 @@ const ClientsPage = () => {
                                         id="telephone"
                                         placeholder="Téléphone"
                                         value={formData.telephone}
-                                        onChange={e => handleFormChange('telephone', e.target.value)}
+                                        onChange={e => handleFormChange('telephone', ctrl.taille(ctrl.nombre(e.target.value), 10))}
                                         required
                                       />
                                     </div>
@@ -447,7 +483,10 @@ const ClientsPage = () => {
                                       <Label htmlFor="pieceIdentiteType">Type de pièce d'identité</Label>
                                       <Select
                                         value={formData.typePieceIdentite}
-                                        onValueChange={value => handleFormChange('typePieceIdentite', value)}
+                                        onValueChange={(value) => {
+                                          handleFormChange('typePieceIdentite', value);
+                                          handleFormChange('numeroPieceIdentite', '');
+                                        }}
                                       >
                                         <SelectTrigger>
                                           <SelectValue placeholder="Sélectionner un type" />
@@ -466,7 +505,9 @@ const ClientsPage = () => {
                                         id="numeroPieceIdentite"
                                         placeholder="Numéro de pièce d'identité"
                                         value={formData.numeroPieceIdentite}
-                                        onChange={e => handleFormChange('numeroPieceIdentite', e.target.value)}
+                                        onChange={e => handleFormChange('numeroPieceIdentite',
+                                          (formData.typePieceIdentite == "Carte d'identité") ? ctrl.taille(ctrl.nombre(e.target.value), 12) : e.target.value
+                                        )}
                                       />
                                     </div>
                                   </div>

@@ -1,17 +1,17 @@
 
 // Types pour la gestion des chambres
-export interface Room {
+export interface Chambre {
   id: string;
   numero: string;
-  type: RoomType;
+  type: ChambreType;
   etage: number;
   prix: number;
   capacite: number;
-  statut: RoomStatus;
+  statut: ChambreStatus;
   description?: string;
 }
 
-export enum RoomType {
+export enum ChambreType {
   SIMPLE = "Simple",
   DOUBLE = "Double",
   SUITE = "Suite",
@@ -19,19 +19,18 @@ export enum RoomType {
   DELUXE = "Deluxe",
 }
 
-export enum RoomStatus {
+export enum ChambreStatus {
   DISPONIBLE = "Disponible",
   OCCUPEE = "Occupée",
   MAINTENANCE = "Maintenance",
-  NETTOYAGE = "Nettoyage",
   RESERVEE = "Réservée",
 }
 
 // Types pour la gestion des réservations
 export interface Reservation {
   id: string;
-  chambreId: string;
-  clientId: string;
+  chambre: Chambre;
+  client: Client;
   dateArrivee: Date;
   dateDepart: Date;
   nombrePersonnes: number;
@@ -43,7 +42,7 @@ export interface Reservation {
 
 export enum ReservationStatus {
   CONFIRMEE = "Confirmée",
-  EN_ATTENTE = "En attente",
+  EN_ATTENTE = "En_attente",
   ANNULEE = "Annulée",
   TERMINEE = "Terminée",
 }
@@ -56,7 +55,6 @@ export interface Client {
   email: string;
   telephone: string;
   adresse?: string;
-  dateNaissance?: Date;
   numeroPieceIdentite?: string;
   typePieceIdentite?: string;
   dateCreation: Date;
@@ -80,7 +78,7 @@ export interface User {
   nom: string;
   prenom: string;
   email: string;
-  role: UserRole;
+  roles: UserRole;
 }
 
 export enum UserRole {
