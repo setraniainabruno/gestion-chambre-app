@@ -549,7 +549,7 @@ const ReservationsPage = () => {
                 <Input
                   placeholder="Rechercher une réservation..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => setSearchTerm(ctrl.lettreNombre(e.target.value))}
                   className="pl-9 w-[300px]"
                 />
               </div>

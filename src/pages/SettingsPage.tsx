@@ -29,6 +29,8 @@ const SettingsPage = () => {
   const [mdp, setMdp] = useState<string | null>('');
   const [confMdp, setConfMdp] = useState<string | null>('');
 
+
+
   const recVal = (e: ChangeEvent<HTMLInputElement>): void => {
     setUser((user: any) => ({ ...user, [e.target.name]: e.target.value }));
   }
@@ -99,7 +101,11 @@ const SettingsPage = () => {
         return
       }
 
+
       setTimeout(() => {
+        setMdp('');
+        setAncienMdp('');
+        setConfMdp('');
         setLoading(false);
         toast({
           title: 'Paramètres enregistrés',

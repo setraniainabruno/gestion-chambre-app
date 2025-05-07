@@ -362,7 +362,7 @@ const ClientsPage = () => {
               <Input
                 placeholder="Rechercher un client..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => setSearchTerm(ctrl.lettreNombre(e.target.value))}
                 className="pl-9 w-[300px]"
               />
             </div>

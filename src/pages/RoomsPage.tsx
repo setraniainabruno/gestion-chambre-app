@@ -56,13 +56,14 @@ const RoomsPage = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
+  const [chambreNum, setChambreNum] = useState<string>('');
+
   const { toast } = useToast();
   const ctrl = new ControlleChamps();
 
 
-  // Nouvel état pour le formulaire
   const [formData, setFormData] = useState<Partial<Chambre>>({
-    numero: '',
+    numero: "",
     type: ChambreType.SIMPLE,
     etage: 1,
     prix: 0,
@@ -76,14 +77,17 @@ const RoomsPage = () => {
   };
 
   const getAllChambres = async () => {
-    try {
-      const res = await api.get('/chambres');
-      if (res) {
-        setRooms(res.data);
-      }
-    } catch (error) {
-      console.error(error);
-    }
+    await api.get('/chambres')
+      .then((res) => {
+        const chambres = res.data;
+        let num = -Infinity;
+        chambres.forEach((e: Chambre) => {
+          if (parseInt(e.numero) > num) num = parseInt(e.numero);
+        });
+        setChambreNum((++num).toString());
+        setRooms(chambres);
+      })
+      .catch((error) => console.error(error))
   };
 
   useEffect(() => {
@@ -91,11 +95,13 @@ const RoomsPage = () => {
   }, []);
 
 
+
+
   const handleAddRoom = async () => {
     try {
       const chambre: Chambre = {
         id: `room-${Date.now()}`,
-        numero: formData.numero || '',
+        numero: formData.numero,
         type: formData.type || ChambreType.SIMPLE,
         etage: formData.etage || 1,
         prix: formData.prix || 0,
@@ -103,7 +109,9 @@ const RoomsPage = () => {
         statut: formData.statut || ChambreStatus.DISPONIBLE,
         description: formData.description || ''
       };
-      if (chambre.numero == '' || chambre.prix == 0) return;
+      console.log(chambre)
+      if (chambre.numero == "" || chambre.prix == 0) return;
+
 
       const res = await api.post('/chambres', chambre,
         {
@@ -195,7 +203,7 @@ const RoomsPage = () => {
         if (chambre.statut == ChambreStatus.OCCUPEE || chambre.statut == ChambreStatus.RESERVEE) {
           toast({
             title: 'Suppression impossible',
-            description: `Chambre ${chambre.statut}`,
+            description: `Chambre ${chambre.statut.toLowerCase()}`,
             variant: 'destructive',
           });
           setRoomToDelete('');
@@ -272,8 +280,15 @@ const RoomsPage = () => {
                   <Input
                     id="numero"
                     placeholder="Numéro.."
-                    value={formData.numero}
-                    onChange={e => handleFormChange('numero', ctrl.nombre(e.target.value))}
+                    value={chambreNum}
+                    onFocus={e => {
+                      handleFormChange('numero', ctrl.nombre(e.target.value));
+                      setChambreNum(ctrl.nombre(e.target.value));
+                    }}
+                    onChange={e => {
+                      handleFormChange('numero', ctrl.nombre(e.target.value));
+                      setChambreNum(ctrl.nombre(e.target.value));
+                    }}
                     required
                   />
                 </div>
@@ -373,7 +388,7 @@ const RoomsPage = () => {
                 <Input
                   placeholder="Rechercher une chambre..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => setSearchTerm(ctrl.lettreNombre(e.target.value))}
                   className="pl-9 w-[300px]"
                 />
               </div>
