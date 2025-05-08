@@ -63,7 +63,7 @@ const DashboardPage = () => {
           if (chambre.statut == ChambreStatus.DISPONIBLE) c++;
 
         });
-        setChambreDispo(Math.round((c / chambres.length) * 100));
+        setChambreDispo(chambres.length == 0 ? 0 : Math.round((c / chambres.length) * 100));
       })
 
       .catch((error) => console.error(error))

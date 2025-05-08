@@ -144,7 +144,7 @@ const SettingsPage = () => {
               <div className="flex items-center space-x-4">
                 <Avatar className="h-16 w-16">
                   <AvatarFallback className="bg-sky-800 text-primary-foreground text-lg">
-                    {info?.nom?.charAt(0)}.{info?.prenom?.charAt(0)}
+                    {info?.nom?.charAt(0).toUpperCase()}.{info?.prenom?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>

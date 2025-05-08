@@ -80,7 +80,7 @@ const RoomsPage = () => {
     await api.get('/chambres')
       .then((res) => {
         const chambres = res.data;
-        let num = -Infinity;
+        let num = 0;
         chambres.forEach((e: Chambre) => {
           if (parseInt(e.numero) > num) num = parseInt(e.numero);
         });
@@ -109,7 +109,6 @@ const RoomsPage = () => {
         statut: formData.statut || ChambreStatus.DISPONIBLE,
         description: formData.description || ''
       };
-      console.log(chambre)
       if (chambre.numero == "" || chambre.prix == 0) return;
 
 
