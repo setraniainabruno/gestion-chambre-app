@@ -93,6 +93,8 @@ const LoginPage = () => {
                     required
                   />
                 </div>
+                <Label htmlFor="email">Email :  admin@gmail.com</Label><br/>
+                <Label htmlFor="email">Mot de passe : admin</Label>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Connexion en cours...' : 'Se connecter'}
